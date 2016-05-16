@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/coreos/etcd/client"
@@ -15,6 +16,7 @@ func transform(n *client.Node) *mvccpb.KeyValue {
 	if n.Dir {
 		return nil
 	}
+	fmt.Fprintf(os.Stderr, "Key: %s\n", n.Key)
 	kv := &mvccpb.KeyValue{
 		Key:            []byte(n.Key),
 		Value:          []byte(n.Value),
@@ -31,12 +33,14 @@ func main() {
 	decoder := json.NewDecoder(reader)
 	writer := bufio.NewWriter(os.Stdout)
 
+	fmt.Fprintf(os.Stderr, "Starting...\n")
 	for {
 		if !decoder.More() {
+			fmt.Fprintf(os.Stderr, "No More...\n")
 			break
 		}
 		node := &client.Node{}
-		if err := decoder.Decode(v); err != nil {
+		if err := decoder.Decode(node); err != nil {
 			panic(err)
 		}
 		kv := transform(node)
@@ -48,9 +52,14 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		if err := binary.Write(writer, binary.LittleEndian, len(data)); err != nil {
+		buf := make([]byte, 8)
+		binary.LittleEndian.PutUint64(buf, uint64(len(data)))
+		if _, err := writer.Write(buf); err != nil {
 			panic(err)
 		}
-		writer.Write(data)
+		if _, err := writer.Write(data); err != nil {
+			panic(err)
+		}
 	}
+	fmt.Fprintf(os.Stderr, "Exit...\n")
 }
