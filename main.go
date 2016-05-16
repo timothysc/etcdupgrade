@@ -2,19 +2,20 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"os"
 
 	"github.com/coreos/etcd/client"
-	"github.com/coreos/etcd/storage/storagepb"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/golang/protobuf/proto"
 )
 
-func transform(n *client.Node) *storagepb.KeyValue {
+func transform(n *client.Node) *mvccpb.KeyValue {
 	if n.Dir {
 		return nil
 	}
-	kv := &storagepb.KeyValue{
+	kv := &mvccpb.KeyValue{
 		Key:            []byte(n.Key),
 		Value:          []byte(n.Value),
 		CreateRevision: int64(n.CreatedIndex),
@@ -29,6 +30,7 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 	decoder := json.NewDecoder(reader)
 	writer := bufio.NewWriter(os.Stdout)
+
 	for {
 		if !decoder.More() {
 			break
@@ -41,8 +43,12 @@ func main() {
 		if kv == nil {
 			continue
 		}
+
 		data, err := proto.Marshal(kv)
 		if err != nil {
+			panic(err)
+		}
+		if err := binary.Write(writer, binary.LittleEndian, len(data)); err != nil {
 			panic(err)
 		}
 		writer.Write(data)
