@@ -12,11 +12,11 @@ var (
 )
 
 func before(client *clientv3.Client) error {
-	lcr, err := client.Lease.Grant(context.Background, 60*60)
+	lcr, err := client.Lease.Grant(context.Background(), 60*60)
 	if err != nil {
 		return err
 	}
-	globalLeaseID := lcr.ID
+	globalLeaseID = lcr.ID
 	return nil
 }
 
