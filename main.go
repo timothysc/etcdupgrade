@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/coreos/etcd/client"
@@ -35,19 +35,23 @@ func ExitError(err error) {
 }
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	reader := os.Stdin
 	decoder := json.NewDecoder(reader)
-	writer := bufio.NewWriter(os.Stdout)
+	writer := os.Stdout
 
 	fmt.Fprintf(os.Stderr, "Starting...\n")
-	defer fmt.Fprintf(os.Stderr, "Exit...\n")
+	defer fmt.Fprintf(os.Stderr, "Exiting...\n")
+	defer os.Stdout.Sync()
+	defer os.Stdout.Close()
+
+	buf := make([]byte, 8)
 	for {
 		node := &client.Node{}
 		if err := decoder.Decode(node); err != nil {
+			if err == io.EOF {
+				return
+			}
 			ExitError(err)
-		}
-		if node.Key == "" {
-			return
 		}
 
 		kv := transform(node)
@@ -59,7 +63,6 @@ func main() {
 		if err != nil {
 			ExitError(err)
 		}
-		buf := make([]byte, 8)
 		binary.LittleEndian.PutUint64(buf, uint64(len(data)))
 		if _, err := writer.Write(buf); err != nil {
 			ExitError(err)
