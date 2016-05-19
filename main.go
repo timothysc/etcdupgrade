@@ -14,6 +14,7 @@ import (
 
 func transform(n *client.Node) *mvccpb.KeyValue {
 	if n.Dir {
+		fmt.Fprintf(os.Stderr, "Dir: %s\n", n.Key)
 		return nil
 	}
 	fmt.Fprintf(os.Stderr, "Key: %s\n", n.Key)
@@ -28,21 +29,27 @@ func transform(n *client.Node) *mvccpb.KeyValue {
 	return kv
 }
 
+func ExitError(err error) {
+	fmt.Fprintf(os.Stderr, "Err: %v\n", err)
+	os.Exit(1)
+}
+
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	decoder := json.NewDecoder(reader)
 	writer := bufio.NewWriter(os.Stdout)
 
 	fmt.Fprintf(os.Stderr, "Starting...\n")
+	defer fmt.Fprintf(os.Stderr, "Exit...\n")
 	for {
-		if !decoder.More() {
-			fmt.Fprintf(os.Stderr, "No More...\n")
-			break
-		}
 		node := &client.Node{}
 		if err := decoder.Decode(node); err != nil {
-			panic(err)
+			ExitError(err)
 		}
+		if node.Key == "" {
+			return
+		}
+
 		kv := transform(node)
 		if kv == nil {
 			continue
@@ -50,16 +57,15 @@ func main() {
 
 		data, err := proto.Marshal(kv)
 		if err != nil {
-			panic(err)
+			ExitError(err)
 		}
 		buf := make([]byte, 8)
 		binary.LittleEndian.PutUint64(buf, uint64(len(data)))
 		if _, err := writer.Write(buf); err != nil {
-			panic(err)
+			ExitError(err)
 		}
 		if _, err := writer.Write(data); err != nil {
-			panic(err)
+			ExitError(err)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "Exit...\n")
 }
