@@ -41,7 +41,6 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "Starting...\n")
 	defer fmt.Fprintf(os.Stderr, "Exiting...\n")
-	defer os.Stdout.Sync()
 	defer os.Stdout.Close()
 
 	buf := make([]byte, 8)
