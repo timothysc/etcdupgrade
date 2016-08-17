@@ -44,7 +44,7 @@ func main() {
 		for _, kv := range resp.Kvs {
 			if kv.Lease != 0 {
 				v2kv.Set(context.TODO(), string(kv.Key), string(kv.Value), &client.SetOptions{
-					TTL: 10 * time.Second,
+					TTL: 1 * time.Hour,
 				})
 				continue
 			}
