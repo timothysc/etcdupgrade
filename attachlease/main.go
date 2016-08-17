@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -35,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	lresp, err := etcdcli.Lease.Grant(context.TODO(), 5)
+	lresp, err := etcdcli.Lease.Grant(context.TODO(), int64(1*time.Hour/time.Second))
 	if err != nil {
 		panic(err)
 	}
