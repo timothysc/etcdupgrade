@@ -14,10 +14,14 @@ import (
 
 func transform(n *client.Node) *mvccpb.KeyValue {
 	if n.Dir {
-		fmt.Fprintf(os.Stderr, "Dir: %s\n", n.Key)
+		// fmt.Fprintf(os.Stderr, "Dir: %s\n", n.Key)
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "Key: %s\n", n.Key)
+	if n.TTL != 0 {
+		fmt.Fprintf(os.Stderr, "TTL key: %s\n", n.Key)
+	} else {
+		fmt.Fprintf(os.Stderr, "Key: %s\n", n.Key)
+	}
 	kv := &mvccpb.KeyValue{
 		Key:            []byte(n.Key),
 		Value:          []byte(n.Value),
