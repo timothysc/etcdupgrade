@@ -54,7 +54,7 @@ func main() {
 	}
 	// TODO: pagination
 	getResp, err := client.KV.Get(context.TODO(), ttlDir, clientv3.WithPrefix())
-	if err {
+	if err != nil {
 		panic(err)
 	}
 	for _, kv := range getResp.Kvs {
