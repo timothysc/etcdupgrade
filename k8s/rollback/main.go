@@ -2,61 +2,36 @@ package main
 
 import (
 	"flag"
-	"log"
-	"strings"
+	"fmt"
+	"path"
 	"time"
 
-	"golang.org/x/net/context"
-
-	"github.com/coreos/etcd/client"
-	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/mvcc/backend"
+	"github.com/coreos/etcd/mvcc/mvccpb"
 )
 
-var etcdHosts string
+var (
+	migrateDatadir string
+)
 
 func init() {
-	flag.StringVar(&etcdHosts, "etcd-addr", "http://localhost:2379", "")
+	flag.StringVar(&migrateDatadir, "data-dir", "", "Path to the data directory")
 	flag.Parse()
 }
+
 func main() {
-	cfg := clientv3.Config{Endpoints: strings.Split(etcdHosts, ",")}
-	etcdcli, err := clientv3.New(cfg)
-	if err != nil {
-		panic(err)
-	}
-	v2cfg := client.Config{Endpoints: strings.Split(etcdHosts, ",")}
-	v2cli, err := client.New(v2cfg)
-	if err != nil {
-		panic(err)
-	}
+	dbpath := path.Join(migrateDatadir, "member", "snap", "db")
 
-	v2kv := client.NewKeysAPI(v2cli)
+	be := backend.New(dbpath, time.Second, 10000)
+	tx := be.BatchTx()
 
-	key := "/"
-	for {
-		opts := []clientv3.OpOption{clientv3.WithLimit(100), clientv3.WithPrefix()}
-		resp, err := etcdcli.KV.Get(context.TODO(), key, opts...)
-		if err != nil {
-			panic(err)
-		}
+	tx.Lock()
+	tx.UnsafeForEach([]byte("key"), func(k, v []byte) error {
+		kv := &mvccpb.KeyValue{}
+		kv.Unmarshal(v)
+		fmt.Printf("%s %d %d %d\n", string(kv.Key), kv.CreateRevision, kv.ModRevision, kv.Lease)
+		return nil
+	})
+	tx.Unlock()
 
-		// copy to v2
-		for _, kv := range resp.Kvs {
-			if kv.Lease != 0 {
-				v2kv.Set(context.TODO(), string(kv.Key), string(kv.Value), &client.SetOptions{
-					TTL: 1 * time.Hour,
-				})
-				continue
-			}
-			v2kv.Set(context.TODO(), string(kv.Key), string(kv.Value), nil)
-		}
-
-		if !resp.More {
-			log.Println("finished")
-			return
-		}
-
-		// move to next key
-		key = string(append(resp.Kvs[len(resp.Kvs)-1].Key, 0))
-	}
 }
