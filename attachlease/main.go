@@ -15,6 +15,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 	"time"
 
@@ -48,7 +49,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error while creating lease: %v", err)
 	}
-	glog.Infof("granted lease with TTL: %v seconds", lease.TTL)
+	fmt.Printf("granted lease with TTL: %v seconds", lease.TTL)
 
 	if strings.HasSuffix(ttlDir, "/") {
 		ttlDir = ttlDir + "/"
@@ -64,5 +65,5 @@ func main() {
 			panic(err)
 		}
 	}
-	glog.Infof("successfully attach %d keys to lease", len(getResp.Kvs))
+	fmt.Printf("successfully attach %d keys to lease", len(getResp.Kvs))
 }
