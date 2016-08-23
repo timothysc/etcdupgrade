@@ -1,61 +1,66 @@
+/*
+Copyright 2016 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
-	"bufio"
 	"flag"
-	"os"
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/coreos/etcd/clientv3"
+	"github.com/golang/glog"
+	"golang.org/x/net/context"
 )
 
-var keysFile string
-var etcdHosts string
-
-func init() {
-	flag.StringVar(&keysFile, "file", "", "The file of ttls keys. Each line of format: \"TTL Keys:...\"")
-	flag.StringVar(&etcdHosts, "etcd-addr", "localhost:2379", "")
-	flag.Parse()
-}
-
 func main() {
-	if keysFile == "" {
-		panic("unexpected")
+	var ttlDir string
+	var etcdHost string
+	var leaseDuration time.Duration
+
+	flag.StringVar(&ttlDir, "ttldir", "", "ttl keys directory")
+	flag.StringVar(&etcdHost, "etcd-addr", "", "Etcd address")
+	flag.DurationVar(&leaseDuration, "lease-duration", time.Hour, "Lease duration")
+	flag.Parse()
+
+	if ttlDir == "" {
+		glog.Fatalf("--ttldir flag is required")
 	}
-	cfg := clientv3.Config{Endpoints: strings.Split(etcdHosts, ",")}
-	etcdcli, err := clientv3.New(cfg)
-	if err != nil {
-		panic(err)
+	if etcdHost == "" {
+		glog.Fatalf("--etcd-addr flag is required")
 	}
 
-	f, err := os.Open(keysFile)
+	client, err := clientv3.New(clientv3.Config{Endpoints: []string{etcdHost}})
 	if err != nil {
-		panic(err)
+		glog.Fatalf("Error while creating etcd client: %v", err)
+	}
+	lease, err := client.Lease.Grant(context.TODO(), int64(leaseDuration/time.Second))
+	if err != nil {
+		glog.Fatalf("Error while creating lease: %v", err)
 	}
 
-	lresp, err := etcdcli.Lease.Grant(context.TODO(), int64(1*time.Hour/time.Second))
-	if err != nil {
+	if strings.HasSuffix(ttlDir, "/") {
+		ttlDir = ttlDir + "/"
+	}
+	// TODO: pagination
+	getResp, err := client.KV.Get(context.TODO(), ttlDir, clientv3.WithPrefix())
+	if err {
 		panic(err)
 	}
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "TTL key:") {
-			continue
-		}
-		key := strings.TrimSpace(line[len("TTL key:"):])
-		gresp, err := etcdcli.KV.Get(context.TODO(), key)
+	for _, kv := range getResp.Kvs {
+		_, err := client.KV.Put(context.TODO(), string(kv.Key), string(kv.Value), clientv3.WithLease(lease.ID))
 		if err != nil {
 			panic(err)
 		}
-		etcdcli.KV.Put(context.TODO(), key, string(gresp.Kvs[0].Value), clientv3.WithLease(lresp.ID))
 	}
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-
 }
