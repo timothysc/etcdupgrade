@@ -64,4 +64,5 @@ func main() {
 			panic(err)
 		}
 	}
+	glog.Infof("successfully attach %d keys to lease", len(getResp.Kvs))
 }
