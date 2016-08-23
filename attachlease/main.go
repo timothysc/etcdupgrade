@@ -51,7 +51,7 @@ func main() {
 	}
 	fmt.Printf("granted lease with TTL: %v seconds\n", lease.TTL)
 
-	if strings.HasSuffix(ttlDir, "/") {
+	if !strings.HasSuffix(ttlDir, "/") {
 		ttlDir = ttlDir + "/"
 	}
 	// TODO: pagination
