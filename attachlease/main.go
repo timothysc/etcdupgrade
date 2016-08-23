@@ -49,7 +49,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error while creating lease: %v", err)
 	}
-	fmt.Printf("granted lease with TTL: %v seconds", lease.TTL)
+	fmt.Printf("granted lease with TTL: %v seconds\n", lease.TTL)
 
 	if strings.HasSuffix(ttlDir, "/") {
 		ttlDir = ttlDir + "/"
@@ -65,5 +65,5 @@ func main() {
 			panic(err)
 		}
 	}
-	fmt.Printf("successfully attach %d keys to lease", len(getResp.Kvs))
+	fmt.Printf("successfully attach %d keys to lease\n", len(getResp.Kvs))
 }
