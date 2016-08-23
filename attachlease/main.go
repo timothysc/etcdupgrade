@@ -48,6 +48,7 @@ func main() {
 	if err != nil {
 		glog.Fatalf("Error while creating lease: %v", err)
 	}
+	glog.Infof("granted lease with TTL: %v seconds", lease.TTL)
 
 	if strings.HasSuffix(ttlDir, "/") {
 		ttlDir = ttlDir + "/"
