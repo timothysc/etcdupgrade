@@ -140,7 +140,7 @@ func main() {
 }
 
 func printNode(node *store.NodeExtern) {
-	fmt.Println(node.Key[len("/1"):])
+	// fmt.Println(node.Key[len("/1"):])
 	// fmt.Printf("key:%s ttl:%d mod_index:%d\n", node.Key[len("/1"):], node.TTL, node.ModifiedIndex)
 }
 
@@ -168,7 +168,7 @@ func traverse(st store.Store, dir string) {
 		if !node.Dir {
 			printNode(node)
 		} else {
-			fmt.Println(node.Key[len("/1"):])
+			// fmt.Println(node.Key[len("/1"):])
 			traverse(st, node.Key)
 		}
 	}
