@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -102,6 +103,7 @@ func main() {
 	}
 	w.Close()
 
+	nodeIDs := []uint64{}
 	event, err := oldSt.Get("/0", true, false)
 	if err != nil {
 		panic(err)
@@ -122,6 +124,16 @@ func main() {
 			if _, err := st.Set(n.Key, n.Dir, v, store.TTLOptionSet{}); err != nil {
 				panic(err)
 			}
+
+			fields := strings.Split(n.Key, "/")
+			if len(fields) == 4 && fields[2] == "members" {
+				nodeID, err := strconv.ParseUint(fields[3], 16, 64)
+				if err != nil {
+					fmt.Println("wrong ID: %s", fields[3])
+					panic(err)
+				}
+				nodeIDs = append(nodeIDs, nodeID)
+			}
 		}
 		for _, next := range n.Nodes {
 			q = append(q, next)
@@ -133,6 +145,10 @@ func main() {
 		panic(err)
 	}
 	raftSnap.Data = data
+	raftSnap.Metadata.Index = hardstate.Commit
+	raftSnap.Metadata.Term = hardstate.Term
+	// fill in nodes by iterating all members in /0 namespace with their IDs
+	raftSnap.Metadata.ConfState.Nodes = nodeIDs
 	if err := snapshotter.SaveSnap(*raftSnap); err != nil {
 		panic(err)
 	}
