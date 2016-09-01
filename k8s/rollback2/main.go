@@ -103,7 +103,7 @@ func main() {
 	w.Close()
 
 	nodeIDs := []uint64{}
-	event, err := oldSt.Get("/0", true, false)
+	event, err := oldSt.Get(etcdserver.StoreClusterPrefix, true, false)
 	if err != nil {
 		panic(err)
 	}
@@ -113,12 +113,12 @@ func main() {
 		n := q[0]
 		q = q[1:]
 		// fmt.Println(n.Key)
-		if n.Key != "/0" {
+		if n.Key != etcdserver.StoreClusterPrefix {
 			v := ""
 			if !n.Dir {
 				v = *n.Value
 			}
-			if n.Key == path.Join("/0", "version") {
+			if n.Key == path.Join(etcdserver.StoreClusterPrefix, "version") {
 				v = "2.3.7"
 			}
 			if _, err := st.Set(n.Key, n.Dir, v, store.TTLOptionSet{}); err != nil {
@@ -223,7 +223,7 @@ func rebuild(datadir string) ([]byte, raftpb.HardState, store.Store) {
 		panic(err)
 	}
 
-	st := store.New("/0", "/1")
+	st := store.New(etcdserver.StoreClusterPrefix, etcdserver.StoreKeysPrefix)
 	if snapshot != nil {
 		err := st.Recovery(snapshot.Data)
 		if err != nil {
