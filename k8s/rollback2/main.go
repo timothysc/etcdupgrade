@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"strconv"
@@ -11,9 +13,11 @@ import (
 
 	"github.com/coreos/etcd/etcdserver"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
+	"github.com/coreos/etcd/etcdserver/membership"
 	"github.com/coreos/etcd/mvcc/backend"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/coreos/etcd/pkg/pbutil"
+	"github.com/coreos/etcd/pkg/types"
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/coreos/etcd/snap"
 	"github.com/coreos/etcd/store"
@@ -38,7 +42,7 @@ func main() {
 	be := backend.New(dbpath, time.Second, 10000)
 	tx := be.BatchTx()
 
-	st := store.New("/0", "/1")
+	st := store.New(etcdserver.StoreClusterPrefix, etcdserver.StoreKeysPrefix)
 	expireTime := time.Now().Add(ttl)
 
 	tx.Lock()
@@ -75,13 +79,8 @@ func main() {
 	}
 	tx.Unlock()
 
+	// delete empty dirs
 	traverse(st, "/")
-
-	snapshotter := snap.New(path.Join(migrateDatadir, "member", "snap"))
-	raftSnap, err := snapshotter.Load()
-	if err != nil {
-		panic(err)
-	}
 
 	metadata, hardstate, oldSt := rebuild(migrateDatadir)
 
@@ -113,11 +112,12 @@ func main() {
 	for len(q) > 0 {
 		n := q[0]
 		q = q[1:]
-		v := ""
-		if !n.Dir {
-			v = *n.Value
-		}
+		// fmt.Println(n.Key)
 		if n.Key != "/0" {
+			v := ""
+			if !n.Dir {
+				v = *n.Value
+			}
 			if n.Key == path.Join("/0", "version") {
 				v = "2.3.7"
 			}
@@ -144,12 +144,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	raftSnap.Data = data
-	raftSnap.Metadata.Index = hardstate.Commit
-	raftSnap.Metadata.Term = hardstate.Term
-	// fill in nodes by iterating all members in /0 namespace with their IDs
-	raftSnap.Metadata.ConfState.Nodes = nodeIDs
-	if err := snapshotter.SaveSnap(*raftSnap); err != nil {
+	// fmt.Println(nodeIDs)
+	raftSnap := raftpb.Snapshot{
+		Data: data,
+		Metadata: raftpb.SnapshotMetadata{
+			Index: hardstate.Commit,
+			Term:  hardstate.Term,
+			ConfState: raftpb.ConfState{
+				Nodes: nodeIDs,
+			},
+		},
+	}
+	snapshotter := snap.New(path.Join(migrateDatadir, "member", "snap"))
+	if err := snapshotter.SaveSnap(raftSnap); err != nil {
 		panic(err)
 	}
 	fmt.Println("Finished.")
@@ -216,7 +223,7 @@ func rebuild(datadir string) ([]byte, raftpb.HardState, store.Store) {
 		panic(err)
 	}
 
-	st := store.New()
+	st := store.New("/0", "/1")
 	if snapshot != nil {
 		err := st.Recovery(snapshot.Data)
 		if err != nil {
@@ -224,9 +231,32 @@ func rebuild(datadir string) ([]byte, raftpb.HardState, store.Store) {
 		}
 	}
 
-	applier := etcdserver.NewApplierV2(st, nil)
+	cluster := membership.NewCluster("")
+	cluster.SetStore(st)
+
+	applier := etcdserver.NewApplierV2(st, cluster)
 	for _, ent := range ents {
-		if ent.Type != raftpb.EntryNormal {
+
+		if ent.Type == raftpb.EntryConfChange {
+			var cc raftpb.ConfChange
+			pbutil.MustUnmarshal(&cc, ent.Data)
+			switch cc.Type {
+			case raftpb.ConfChangeAddNode:
+				m := new(membership.Member)
+				if err := json.Unmarshal(cc.Context, m); err != nil {
+					log.Panicf("unmarshal member should never fail: %v", err)
+				}
+				cluster.AddMember(m)
+			case raftpb.ConfChangeRemoveNode:
+				id := types.ID(cc.NodeID)
+				cluster.RemoveMember(id)
+			case raftpb.ConfChangeUpdateNode:
+				m := new(membership.Member)
+				if err := json.Unmarshal(cc.Context, m); err != nil {
+					log.Panicf("unmarshal member should never fail: %v", err)
+				}
+				cluster.UpdateRaftAttributes(m.ID, m.RaftAttributes)
+			}
 			continue
 		}
 
@@ -261,6 +291,7 @@ func applyRequest(r *pb.Request, applyV2 etcdserver.ApplierV2) {
 	case "POST":
 		applyV2.Post(r)
 	case "PUT":
+		// fmt.Println("put", r.Path)
 		applyV2.Put(r)
 	case "DELETE":
 		applyV2.Delete(r)
