@@ -3,7 +3,7 @@
 Running the rollback tool is very simple:
 ```
 $ go build .
-$ ./rollback2 --data-dir $ETCDDATADIR --ttl 1h
+$ ./rollback2 --data-dir $ETCD_DATA_DIR --ttl 1h
 ```
 
 This will rollback KV pairs from v3 into v2.
