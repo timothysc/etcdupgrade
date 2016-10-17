@@ -18,9 +18,13 @@ func transform(n *client.Node) *mvccpb.KeyValue {
 		return nil
 	}
 	if n.TTL != 0 {
-		fmt.Fprintf(os.Stderr, "TTL key: %s\n", n.Key)
+		// NOTE: We have chosen that TTL keys will not be converted to
+		// prevent potential timing issues that could exist across offline migration
+		// This preserves the core data
+		fmt.Fprintf(os.Stderr, "**NOT-CONVERTING** TTL key: %s\n", n.Key)
+		return nil
 	} else {
-		fmt.Fprintf(os.Stderr, "Key: %s\n", n.Key)
+		fmt.Fprintf(os.Stderr, "*CONVERTING* Key: %s\n", n.Key)
 	}
 	kv := &mvccpb.KeyValue{
 		Key:            []byte(n.Key),
@@ -48,12 +52,13 @@ func main() {
 	defer os.Stdout.Close()
 
 	buf := make([]byte, 8)
-	for {
+	for decoder.More() {
 		node := &client.Node{}
 		if err := decoder.Decode(node); err != nil {
 			if err == io.EOF {
 				return
 			}
+			fmt.Fprintf(os.Stderr, "ERROR CODING NODE %v\n", node)
 			ExitError(err)
 		}
 
@@ -64,13 +69,16 @@ func main() {
 
 		data, err := proto.Marshal(kv)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR MARSHALLING DATA %v\n", data)
 			ExitError(err)
 		}
 		binary.LittleEndian.PutUint64(buf, uint64(len(data)))
 		if _, err := writer.Write(buf); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR WRITING BUFFER\n")
 			ExitError(err)
 		}
 		if _, err := writer.Write(data); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR DATA DATA\n")
 			ExitError(err)
 		}
 	}
