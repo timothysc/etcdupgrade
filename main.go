@@ -60,7 +60,9 @@ func main() {
 				return
 			}
 			fmt.Fprintf(os.Stderr, "ERROR CODING NODE %v %v\n", idx, node)
-			fmt.Fprintf(os.Stderr, "Reader = %v\n", reader)
+			var str string
+			n, err := reader.WriteString(str)
+			fmt.Fprintf(os.Stderr, "Reader(%v)[%v] = %v\n", n, err, str)
 			ExitError(err)
 		}
 
