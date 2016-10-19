@@ -46,6 +46,7 @@ func main() {
 	reader := os.Stdin
 	decoder := json.NewDecoder(reader)
 	writer := os.Stdout
+	idx := 0
 
 	fmt.Fprintf(os.Stderr, "Starting...\n")
 	defer fmt.Fprintf(os.Stderr, "Exiting...\n")
@@ -58,7 +59,8 @@ func main() {
 			if err == io.EOF {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "ERROR CODING NODE %v\n", node)
+			fmt.Fprintf(os.Stderr, "ERROR CODING NODE %v %v\n", idx, node)
+			fmt.Fprintf(os.Stderr, "Reader = %v\n", reader)
 			ExitError(err)
 		}
 
@@ -81,5 +83,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR DATA DATA\n")
 			ExitError(err)
 		}
+		idx++
 	}
 }
